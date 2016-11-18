@@ -4,6 +4,20 @@ import java.time.LocalDateTime;
 import java.util.*;
 import com.google.ortools.constraintsolver.*;
 
+class Pair<K, V> {
+    final K first;
+    final V second;
+
+    public static <K, V> Pair<K, V> of(K element0, V element1) {
+        return new Pair<K, V>(element0, element1);
+    }
+
+    public Pair(K element0, V element1) {
+        this.first = element0;
+        this.second = element1;
+    }
+}
+
 class Delivery{
     public Location pickup;
     public Location dropoff;
@@ -28,6 +42,7 @@ public class Router {
 
     public void createRoute(){
         System.out.println("running app...");
+        solve(4,2);
     }
 
     private List<Delivery> createDummyOrders(){
@@ -40,12 +55,31 @@ public class Router {
 
     private void solve(final int numberOfOrders, final int numberOfVehicles) {
         System.out.println("Calling solve..");
-        List<Delivery> deliveries = createDummyOrders();
-        final int numberOfLocations = deliveries.size() * 2;
+
+        List<Pair<Integer, Integer>> locations = new ArrayList();
+        locations.add(new Pair(0,0));
+        locations.add(new Pair(0,2));
+        locations.add(new Pair(2,2));
+        locations.add(new Pair(1,1));
+
+        List<Pair<Integer, Integer>> orderTimeWindows = new ArrayList();
+        orderTimeWindows.add(new Pair(5,10));
+        orderTimeWindows.add(new Pair(15,16));
+        orderTimeWindows.add(new Pair(15,16));
+        orderTimeWindows.add(new Pair(35,40));
+
+        List<Integer> orderPenalties = new ArrayList();
+        orderPenalties.add(1000);
+        orderPenalties.add(1000);
+        orderPenalties.add(1000);
+        orderPenalties.add(1000);
+
 
         RoutingModel model =
-                new RoutingModel(numberOfLocations, numberOfVehicles,
-                        vehicleStarts, vehicleEnds);
+                new RoutingModel(4, 2, 0);
+
+        model.AddPickupAndDelivery(0,1);
+        model.AddPickupAndDelivery(2,3);
 
         // Setting up dimensions
         final int bigNumber = 100000;
@@ -58,7 +92,7 @@ public class Router {
                     return Math.abs(firstLocation.first - secondLocation.first) +
                             Math.abs(firstLocation.second - secondLocation.second);
                 } catch (Throwable throwed) {
-                    logger.warning(throwed.getMessage());
+                    System.out.println(throwed.getMessage());
                     return 0;
                 }
             }
@@ -68,21 +102,18 @@ public class Router {
             @Override
             public long run(int firstIndex, int secondIndex) {
                 try {
-                    if (firstIndex < numberOfOrders) {
-                        return orderDemands.get(firstIndex);
-                    }
-                    return 0;
+                    return 1;
                 } catch (Throwable throwed) {
-                    logger.warning(throwed.getMessage());
+                    System.out.println(throwed.getMessage());
                     return 0;
                 }
             }
         };
-        model.addDimension(demandCallback, 0, vehicleCapacity, true, "capacity");
+        model.addDimension(demandCallback, 0, 20, true, "capacity");
 
         // Setting up vehicles
         for (int vehicle = 0; vehicle < numberOfVehicles; ++vehicle) {
-            final int costCoefficient = vehicleCostCoefficients.get(vehicle);
+            final int costCoefficient = 1;
             NodeEvaluator2 manhattanCostCallback = new NodeEvaluator2() {
                 @Override
                 public long run(int firstIndex, int secondIndex) {
@@ -93,13 +124,13 @@ public class Router {
                                 (Math.abs(firstLocation.first - secondLocation.first) +
                                         Math.abs(firstLocation.second - secondLocation.second));
                     } catch (Throwable throwed) {
-                        logger.warning(throwed.getMessage());
+                        System.out.println(throwed.getMessage());
                         return 0;
                     }
                 }
             };
             model.setVehicleCost(vehicle, manhattanCostCallback);
-            model.cumulVar(model.end(vehicle), "time").setMax(vehicleEndTime.get(vehicle));
+            model.cumulVar(model.end(vehicle), "time").setMax(1000);
         }
 
         // Setting up orders
@@ -118,7 +149,7 @@ public class Router {
                         .setFirstSolutionStrategy(FirstSolutionStrategy.Value.ALL_UNPERFORMED)
                         .build();
 
-        logger.info("Search");
+        System.out.println("Search");
         Assignment solution = model.solveWithParameters(parameters);
 
         if (solution != null) {
@@ -156,7 +187,7 @@ public class Router {
                 }
                 output += route + "\n";
             }
-            logger.info(output);
+            System.out.println(output);
         }
     }
 }
